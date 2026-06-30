@@ -99,6 +99,8 @@ public:
 
 private:
 	void CleanupFiles();
+	//! Commit outcome unknown (5xx / no HTTP status); CleanupFiles() then keeps the written files.
+	bool commit_state_unknown = false;
 
 private:
 	DatabaseInstance &db;
