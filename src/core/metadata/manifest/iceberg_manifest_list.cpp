@@ -45,7 +45,8 @@ IcebergManifestListEntry IcebergManifestListEntry::CreateFromEntries(FileSystem 
 	IcebergManifestListEntry manifest_list_entry(manifest_file_path);
 	auto &manifest_file = manifest_list_entry.file;
 	manifest_file.manifest_path = manifest_file_path;
-	if (table_metadata.iceberg_version >= 3) {
+	if (table_metadata.iceberg_version >= 3 && manifest_content_type == IcebergManifestContentType::DATA) {
+		//! first_row_id is only assigned to DATA manifests (row lineage); deletes manifests write null.
 		manifest_file.has_first_row_id = true;
 		manifest_file.first_row_id = next_row_id;
 	}
@@ -445,6 +446,10 @@ void WriteToFile(const IcebergTableMetadata &table_metadata, const IcebergManife
 
 		if (has_first_row_id) {
 			data.SetValue(col_idx++, i, first_row_id);
+		} else {
+			//! Unassigned (e.g. deletes manifests) - write the Avro null branch explicitly; leaving
+			//! the cell unset serializes uninitialized vector memory as a garbage first_row_id.
+			data.SetValue(col_idx++, i, Value(LogicalType::BIGINT));
 		}
 	}
 	data.SetCardinality(manifest_files.size());
