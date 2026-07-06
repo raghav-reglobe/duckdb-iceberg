@@ -247,10 +247,16 @@ DeserializeResult IcebergValue::DeserializeValue(const string_t &blob, const Log
 const idx_t IcebergValue::MAX_STRING_UPPERBOUND_LENGTH;
 
 string IcebergValue::TruncateString(const string &input) {
-	std::vector<unsigned char> bytes(input.begin(), input.end());
-	idx_t truncated_length = std::min<idx_t>(IcebergValue::MAX_STRING_UPPERBOUND_LENGTH, bytes.size());
-	bytes.resize(truncated_length);
-	return std::string(bytes.begin(), bytes.end());
+	if (input.size() <= IcebergValue::MAX_STRING_UPPERBOUND_LENGTH) {
+		return input;
+	}
+	// Truncate to at most MAX_STRING_UPPERBOUND_LENGTH bytes, backing off so we never split a
+	// multi-byte UTF-8 character - the stored bound must remain valid UTF-8.
+	idx_t len = IcebergValue::MAX_STRING_UPPERBOUND_LENGTH;
+	while (len > 0 && (static_cast<unsigned char>(input[len]) & 0xC0) == 0x80) {
+		len--;
+	}
+	return input.substr(0, len);
 }
 
 bool IcebergValue::TruncateAndIncrementString(const string &input, string &result) {
