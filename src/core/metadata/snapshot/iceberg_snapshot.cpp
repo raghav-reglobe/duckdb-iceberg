@@ -20,7 +20,8 @@ static map<IcebergSnapshotMetricType, int64_t> EmptyMetrics() {
 	return map<IcebergSnapshotMetricType, int64_t>({{IcebergSnapshotMetricType::TOTAL_DATA_FILES, 0},
 	                                                {IcebergSnapshotMetricType::TOTAL_RECORDS, 0},
 	                                                {IcebergSnapshotMetricType::TOTAL_DELETE_FILES, 0},
-	                                                {IcebergSnapshotMetricType::TOTAL_POSITION_DELETES, 0}});
+	                                                {IcebergSnapshotMetricType::TOTAL_POSITION_DELETES, 0},
+	                                                {IcebergSnapshotMetricType::TOTAL_EQUALITY_DELETES, 0}});
 }
 
 IcebergSnapshotMetrics::IcebergSnapshotMetrics() : metrics(EmptyMetrics()) {
@@ -44,6 +45,21 @@ IcebergSnapshotMetrics::IcebergSnapshotMetrics(const IcebergSnapshot &snapshot) 
 	if (total_position_deletes != other_metrics.end()) {
 		metrics[IcebergSnapshotMetricType::TOTAL_POSITION_DELETES] = total_position_deletes->second;
 	}
+	auto total_equality_deletes = other_metrics.find(IcebergSnapshotMetricType::TOTAL_EQUALITY_DELETES);
+	if (total_equality_deletes != other_metrics.end()) {
+		metrics[IcebergSnapshotMetricType::TOTAL_EQUALITY_DELETES] = total_equality_deletes->second;
+	}
+#ifndef ICEBERG_ENABLE_EQUALITY_DELETE_WRITES
+	//! Missing-previous-as-zero recovery: a table whose earlier snapshots were
+	//! written by an engine that omitted total-equality-deletes would otherwise
+	//! never regain the key (the copy above only carries present totals, forever).
+	//! Summary consumers doing COUNT(*) pushdown treat an absent counter as
+	//! "cannot use summary" — a permanent full-scan tax. Safe only because this
+	//! writer produces position deletes exclusively (V3 DVs): an absent equality
+	//! baseline is genuinely zero. Guarded so equality-delete write support must
+	//! revisit this claim.
+	metrics.emplace(IcebergSnapshotMetricType::TOTAL_EQUALITY_DELETES, 0);
+#endif
 }
 
 void IcebergSnapshotMetrics::AddManifestFile(const IcebergManifestFile &manifest_file) {
@@ -149,7 +165,8 @@ static const IcebergSnapshotMetricItem SNAPSHOT_METRIC_KEYS[] = {
     {IcebergSnapshotMetricType::TOTAL_DATA_FILES, "total-data-files"},
     {IcebergSnapshotMetricType::TOTAL_RECORDS, "total-records"},
     {IcebergSnapshotMetricType::TOTAL_DELETE_FILES, "total-delete-files"},
-    {IcebergSnapshotMetricType::TOTAL_POSITION_DELETES, "total-position-deletes"}};
+    {IcebergSnapshotMetricType::TOTAL_POSITION_DELETES, "total-position-deletes"},
+    {IcebergSnapshotMetricType::TOTAL_EQUALITY_DELETES, "total-equality-deletes"}};
 
 static const idx_t SNAPSHOT_METRIC_KEYS_SIZE = sizeof(SNAPSHOT_METRIC_KEYS) / sizeof(IcebergSnapshotMetricItem);
 

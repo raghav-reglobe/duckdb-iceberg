@@ -22,7 +22,8 @@ enum class IcebergSnapshotMetricType : uint8_t {
 	TOTAL_DATA_FILES,
 	TOTAL_RECORDS,
 	TOTAL_DELETE_FILES,
-	TOTAL_POSITION_DELETES
+	TOTAL_POSITION_DELETES,
+	TOTAL_EQUALITY_DELETES
 };
 
 class IcebergSnapshot;
